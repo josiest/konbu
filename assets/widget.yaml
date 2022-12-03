@@ -1,1 +1,3 @@
-horizontal: top
+layout:
+  horizontal: top
+  vertical: right

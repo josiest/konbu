@@ -4,18 +4,18 @@
 #include <yaml-cpp/yaml.h>
 
 // type constraints
-#include <iterator>
 #include <ranges>
 
 // data types and structures
 #include <unordered_set>
 #include <unordered_map>
+#include <vector>
 #include <string>
 
 namespace ranges = std::ranges;
 namespace views = std::views;
 
-namespace konbu {
+namespace gold {
 namespace just {
 /** Horizontal justification setting */
 enum class horizontal {
@@ -36,7 +36,36 @@ struct layout {
     just::horizontal horz = just::horizontal::left;
     just::vertical vert = just::vertical::top;
 };
+}
+namespace just = gold::just;
 
+namespace just = gold::just;
+std::ostream & operator<<(std::ostream & os, just::horizontal const & horz)
+{
+    using namemap = std::unordered_map<just::horizontal, std::string>;
+    static namemap const names{
+        { just::horizontal::left,   "left" },
+        { just::horizontal::right,  "right" },
+        { just::horizontal::center, "center" },
+        { just::horizontal::fill,   "fill" }
+    };
+    os << names.find(horz)->second;
+    return os;
+}
+std::ostream & operator<<(std::ostream & os, just::vertical const & vert)
+{
+    using namemap = std::unordered_map<just::vertical, std::string>;
+    static namemap const names{
+        { just::vertical::top,      "top" },
+        { just::vertical::bottom,   "bottom" },
+        { just::vertical::center,   "center" },
+        { just::vertical::fill,     "fill" }
+    };
+    os << names.find(vert)->second;
+    return os;
+}
+
+namespace konbu {
 template<typename container>
 concept can_push_back =
 requires(container & c, container::value_type const & v)
@@ -65,13 +94,12 @@ requires(container const & c, container::key_type const & key)
 template<ranges::output_range<YAML::Exception> error_output,
          lookup_table name_lookup>
 requires can_push_back<error_output> and
-         std::convertible_to<std::string, lookup_key_t<name_lookup>> and
-         std::convertible_to<lookup_mapped_t<name_lookup>, just::horizontal>
+         std::convertible_to<std::string, lookup_key_t<name_lookup>>
 
-void expect_lookup(YAML::Node const & config,
-                   just::horizontal & horz,
-                   name_lookup const & lookup,
-                   error_output & errors)
+void read_lookup(YAML::Node const & config,
+                 lookup_mapped_t<name_lookup> & value,
+                 name_lookup const & lookup,
+                 error_output & errors)
 {
     if (not config.IsScalar()) {
         YAML::Exception const error{ config.Mark(), "Expecting a string" };
@@ -81,7 +109,7 @@ void expect_lookup(YAML::Node const & config,
     }
     auto const search = lookup.find(config.as<std::string>());
     if (search != lookup.end()) {
-        horz = search->second;
+        value = search->second;
         return;
     }
     std::stringstream message;
@@ -99,9 +127,9 @@ void expect_lookup(YAML::Node const & config,
 
 template<ranges::output_range<YAML::Exception> error_output>
 requires can_push_back<error_output>
-void expect(YAML::Node const & config,
-            just::horizontal & horz,
-            error_output & errors)
+void read(YAML::Node const & config,
+          just::horizontal & horz,
+          error_output & errors)
 {
     static std::unordered_map<std::string, just::horizontal> const
     as_horizontal_justification {
@@ -110,7 +138,41 @@ void expect(YAML::Node const & config,
         { "center", just::horizontal::center },
         { "fill",   just::horizontal::fill }
     };
-    return expect_lookup(config, horz, as_horizontal_justification, errors);
+    std::vector<YAML::Exception> read_errors;
+    read_lookup(config, horz, as_horizontal_justification, read_errors);
+    for (auto const & read_error : read_errors) {
+        std::stringstream message;
+        message << "couldn't read horizontal justification\n  "
+                << read_error.msg << "\n  using default value \""
+                << horz << "\"";
+        YAML::Exception const error{ read_error.mark, message.str() };
+        ranges::copy(views::single(error), std::back_inserter(errors));
+    }
+}
+
+template <ranges::output_range<YAML::Exception> error_output>
+requires can_push_back<error_output>
+void read(YAML::Node const & config,
+          just::vertical & vert,
+          error_output & errors)
+{
+    static std::unordered_map<std::string, just::vertical> const
+    as_vertical_justification {
+       { "top",     just::vertical::top },
+       { "bottom",  just::vertical::bottom },
+       { "center",  just::vertical::center },
+       { "fill",    just::vertical::fill }
+    };
+    std::vector<YAML::Exception> read_errors;
+    read_lookup(config, vert, as_vertical_justification, read_errors);
+    for (auto const & read_error : read_errors) {
+        std::stringstream message;
+        message << "couldn't read vertical justification\n  "
+                << read_error.msg << "\n  using default value \""
+                << vert << "\"";
+        YAML::Exception const error{ read_error.mark, message.str() };
+        ranges::copy(views::single(error), std::back_inserter(errors));
+    }
 }
 
 void print_error(std::string const & message) {
@@ -118,48 +180,45 @@ void print_error(std::string const & message) {
 }
 }
 
-namespace just = konbu::just;
-std::ostream & operator<<(std::ostream & os, just::horizontal const & horz)
-{
-    using namemap = std::unordered_map<just::horizontal, std::string>;
-    static namemap const names{
-        { just::horizontal::left,   "left" },
-        { just::horizontal::right,  "right" },
-        { just::horizontal::center, "center" },
-        { just::horizontal::fill,   "fill" }
-    };
-    os << names.find(horz)->second;
-    return os;
-}
 
 int main()
 {
-    std::unordered_set<std::string> const setting_names{
-        "left", "right", "center", "fill"
-    };
     auto const config = YAML::LoadFile("../assets/widget.yaml");
-
     if (not config) {
         std::cout << "Unable to load yaml config\n";
         return EXIT_FAILURE;
     }
-    auto const horizontal_config = config["horizontal"];
+    auto const layout_config = config["layout"];
+    if (not layout_config) {
+        std::cout << "Couldn't find \"layout\" settings in config\n";
+        return EXIT_FAILURE;
+    }
+    if (not layout_config.IsMap()) {
+        std::cout << "Expecting \"layout\" settings to be a map\n";
+        return EXIT_FAILURE;
+    }
+    auto const horizontal_config = layout_config["horizontal"];
     if (not horizontal_config) {
         std::cout << "Couldn't find \"horizontal\" settings in config\n";
         return EXIT_FAILURE;
     }
-    if (not horizontal_config.IsScalar()) {
-        std::cout << "Expecting \"horizontal\" settings to be a string\n";
+    auto const vertical_config = layout_config["vertical"];
+    if (not vertical_config) {
+        std::cout << "Couldn't find \"vertical\" settings in config\n";
         return EXIT_FAILURE;
     }
-    namespace just = konbu::just;
+
+    namespace just = gold::just;
+    auto horz = just::horizontal::left;
+    auto vert = just::vertical::top;
 
     std::vector<YAML::Exception> errors;
-    just::horizontal horz;
-    konbu::expect(horizontal_config, horz, errors);
+    konbu::read(horizontal_config, horz, errors);
+    konbu::read(vertical_config, vert, errors);
     ranges::for_each(errors | views::transform(&YAML::Exception::what),
                      konbu::print_error);
 
-    std::cout << "Using \"" << horz << "\" for horizontal value\n";
+    std::cout << "Using \"" << horz << "\" for horizontal value\n"
+              << "  and \"" << vert << "\" for vertical value\n";
     return EXIT_SUCCESS;
 }
