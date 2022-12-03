@@ -80,3 +80,9 @@ _deps
 #
 
 build/*
+
+#
+# CLion
+#
+.idea/*
+cmake-build-debug/*
