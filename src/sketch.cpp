@@ -4,6 +4,7 @@
 #include <yaml-cpp/yaml.h>
 
 // type constraints
+#include <iterator>
 #include <ranges>
 
 // data types and structures
@@ -43,36 +44,50 @@ requires(container & c, container::value_type const & v)
     c.push_back(v);
 };
 
-template<ranges::range error_output>
-requires ranges::output_range<error_output, YAML::Exception> and
-         can_push_back<error_output>
+template<typename container>
+using lookup_value_t = typename container::value_type;
 
-void expect(YAML::Node const &config,
-            just::horizontal & horz,
-            error_output &errors)
+template<typename container>
+using lookup_key_t = typename container::key_type;
+
+template <typename container>
+using lookup_mapped_t = typename container::mapped_type;
+
+template<typename container>
+concept lookup_table =
+requires(container const & c, container::key_type const & key)
 {
-    using justmap = std::unordered_map<std::string, just::horizontal>;
-    static justmap const justification {
-        { "left",   just::horizontal::left },
-        { "right",  just::horizontal::right },
-        { "center", just::horizontal::center },
-        { "fill",   just::horizontal::fill }
-    };
+    { c.find(key) } -> std::indirectly_readable;
+    { c.find(key)->first } -> std::convertible_to<lookup_key_t<container>>;
+    { c.find(key)->second } -> std::convertible_to<lookup_mapped_t<container>>;
+};
+
+template<ranges::output_range<YAML::Exception> error_output,
+         lookup_table name_lookup>
+requires can_push_back<error_output> and
+         std::convertible_to<std::string, lookup_key_t<name_lookup>> and
+         std::convertible_to<lookup_mapped_t<name_lookup>, just::horizontal>
+
+void expect_lookup(YAML::Node const & config,
+                   just::horizontal & horz,
+                   name_lookup const & lookup,
+                   error_output & errors)
+{
     if (not config.IsScalar()) {
         YAML::Exception const error{ config.Mark(), "Expecting a string" };
         ranges::copy(views::single(error),
                      std::back_inserter(errors));
         return;
     }
-    auto const search = justification.find(config.as<std::string>());
-    if (search != justification.end()) {
+    auto const search = lookup.find(config.as<std::string>());
+    if (search != lookup.end()) {
         horz = search->second;
         return;
     }
     std::stringstream message;
     message << "expecting value to be one of the following: [";
     std::string sep = "";
-    for (const auto & name : justification | views::keys) {
+    for (const auto & name : lookup | views::keys) {
         message << sep << name;
         sep = ", ";
     }
@@ -80,6 +95,22 @@ void expect(YAML::Node const &config,
     YAML::Exception const error{ config.Mark(), message.str() };
     ranges::copy(views::single(error),
                  std::back_inserter(errors));
+}
+
+template<ranges::output_range<YAML::Exception> error_output>
+requires can_push_back<error_output>
+void expect(YAML::Node const & config,
+            just::horizontal & horz,
+            error_output & errors)
+{
+    static std::unordered_map<std::string, just::horizontal> const
+    as_horizontal_justification {
+        { "left",   just::horizontal::left },
+        { "right",  just::horizontal::right },
+        { "center", just::horizontal::center },
+        { "fill",   just::horizontal::fill }
+    };
+    return expect_lookup(config, horz, as_horizontal_justification, errors);
 }
 
 void print_error(std::string const & message) {
