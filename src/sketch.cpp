@@ -40,7 +40,7 @@ struct layout {
 namespace just = gold::just;
 
 namespace just = gold::just;
-std::ostream & operator<<(std::ostream & os, just::horizontal const & horz)
+std::string to_string(just::horizontal const & horz)
 {
     using namemap = std::unordered_map<just::horizontal, std::string>;
     static namemap const names{
@@ -49,10 +49,13 @@ std::ostream & operator<<(std::ostream & os, just::horizontal const & horz)
         { just::horizontal::center, "center" },
         { just::horizontal::fill,   "fill" }
     };
-    os << names.find(horz)->second;
-    return os;
+    return names.find(horz)->second;
 }
-std::ostream & operator<<(std::ostream & os, just::vertical const & vert)
+std::ostream & operator<<(std::ostream & os, just::horizontal const & horz)
+{
+    return os << to_string(horz);
+}
+std::string to_string(just::vertical const & vert)
 {
     using namemap = std::unordered_map<just::vertical, std::string>;
     static namemap const names{
@@ -61,8 +64,11 @@ std::ostream & operator<<(std::ostream & os, just::vertical const & vert)
         { just::vertical::center,   "center" },
         { just::vertical::fill,     "fill" }
     };
-    os << names.find(vert)->second;
-    return os;
+    return names.find(vert)->second;
+}
+std::ostream & operator<<(std::ostream & os, just::vertical const & vert)
+{
+    return os << to_string(vert);
 }
 
 namespace konbu {
