@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.23)
-project(konbu VERSION 0.1.0)
+project(konbu VERSION 0.2.0)
 
 add_library(konbu INTERFACE)
 target_sources(konbu INTERFACE
         FILE_SET HEADERS
-        BASE_DIRS include/konbu
+        BASE_DIRS include
         FILES include/konbu/konbu.h)
 
 find_package(yaml-cpp REQUIRED)
