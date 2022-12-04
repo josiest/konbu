@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.23)
-project(konbu)
+project(konbu VERSION 0.1.0)
 
 add_library(konbu INTERFACE)
 target_sources(konbu INTERFACE
@@ -7,7 +7,7 @@ target_sources(konbu INTERFACE
         BASE_DIRS include/konbu
         include/konbu/konbu.h)
 
-add_executable(sketch src/sketch.cpp)
+add_executable(sketch examples/sketch.cpp)
 target_include_directories(sketch PRIVATE include)
 
 set_target_properties(sketch PROPERTIES
