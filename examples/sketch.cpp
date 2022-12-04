@@ -33,11 +33,13 @@ enum class vertical {
     fill    /** Widget should vertically fill its layout */
 };
 }
+/** Define how a widget will be justified in the layout */
 struct layout {
     just::horizontal horz = just::horizontal::left;
     just::vertical vert = just::vertical::top;
 };
 
+/** Define padding for a widget's layout. */
 template<typename number>
 requires std::is_arithmetic_v<number> and
         (not std::same_as<number, bool>)
@@ -51,10 +53,10 @@ struct padding{
 std::string to_string(just::horizontal const &horz) {
     using namemap = std::unordered_map<just::horizontal, std::string>;
     static namemap const names{
-        {just::horizontal::left,   "left"},
-        {just::horizontal::right,  "right"},
-        {just::horizontal::center, "center"},
-        {just::horizontal::fill,   "fill"}
+        { just::horizontal::left,   "left" },
+        { just::horizontal::right,  "right" },
+        { just::horizontal::center, "center" },
+        { just::horizontal::fill,   "fill" }
     };
     return names.find(horz)->second;
 }
@@ -62,10 +64,10 @@ std::string to_string(just::horizontal const &horz) {
 std::string to_string(just::vertical const &vert) {
     using namemap = std::unordered_map<just::vertical, std::string>;
     static namemap const names{
-        {just::vertical::top,    "top"},
-        {just::vertical::bottom, "bottom"},
-        {just::vertical::center, "center"},
-        {just::vertical::fill,   "fill"}
+        { just::vertical::top,    "top" },
+        { just::vertical::bottom, "bottom" },
+        { just::vertical::center, "center" },
+        { just::vertical::fill,   "fill" }
     };
     return names.find(vert)->second;
 }
@@ -85,8 +87,13 @@ void read(YAML::Node const & config,
         { "center", just::horizontal::center },
         { "fill",   just::horizontal::fill }
     };
+    // read the errors first into an isolated list, so that we can
+    // re-contextualize them before copying them into the main error list
     std::vector<YAML::Exception> read_errors;
     read_lookup(config, horz, as_horizontal_justification, read_errors);
+
+    // let the reader know that the error happened when parsing
+    // horizontal justification
     auto contextualize = [&horz](YAML::Exception const & no_context) {
         std::stringstream message;
         message << "couldn't read horizontal justification: "
@@ -110,8 +117,13 @@ void read(YAML::Node const & config,
        { "center",  just::vertical::center },
        { "fill",    just::vertical::fill }
     };
+    // read the errors first into an isolated list, so that we can
+    // re-contextualize them before copying them into the main error list
     std::vector<YAML::Exception> read_errors;
     read_lookup(config, vert, as_vertical_justification, read_errors);
+
+    // let the reader know that the error happened when parsing
+    // vertical justification
     auto contextualize = [&vert](YAML::Exception const & no_context) {
         std::stringstream message;
         message << "couldn't read vertical justification: "
@@ -128,6 +140,8 @@ void read(YAML::Node const & config,
           gold::layout & layout,
           error_output & errors)
 {
+    // Won't be able to parse any data if the layout config isn't a map,
+    // so we'll need to short-circuit if it isn't
     if (not config.IsMap()) {
         YAML::Exception const error{
             config.Mark(), "expecting \"layout\" settings to be a map\n"
@@ -135,6 +149,8 @@ void read(YAML::Node const & config,
         ranges::copy(views::single(error), back_inserter_preference(errors));
         return;
     }
+    // read the errors first into an isolated list, so that we can
+    // re-contextualize them before copying them into the main error list
     std::vector<YAML::Exception> not_contextualized;
     if (auto const horizontal_config = config["horizontal"]) {
         read(horizontal_config, layout.horz, not_contextualized);
@@ -142,6 +158,7 @@ void read(YAML::Node const & config,
     if (auto const vertical_config = config["vertical"]) {
         read(vertical_config, layout.vert, not_contextualized);
     }
+    // let the reader know that the error happened when parsing layout settings
     auto contextualize = [](YAML::Exception const & no_context) {
         std::stringstream message;
         message << "couldn't read layout settings\n  " << no_context.msg;
@@ -162,13 +179,29 @@ void read(YAML::Node const & config,
     namespace ranges = std::ranges;
     namespace views = std::views;
 
+    // errors will be written here first, before re-contextualizing and
+    // copied into the main error list
     std::vector<YAML::Exception> un_contextualized;
+    // let the reader know the error happened while parsing padding settings
     auto contextualize = [](YAML::Exception const & error) {
         std::stringstream message;
         message << "couldn't read padding value\n  " << error.msg
+                // the default-values for padding members should all be the same
+                // so we can just show the default left value
                 << "\n  using default value of " << gold::padding<number>{}.left;
         return YAML::Exception{ error.mark, message.str() };
     };
+    // inspired by Unreal's UMG widget padding component, there are three ways
+    // to specify:
+    // - "padding: <N>" -> all padding members use the value N
+    // - "padding: [<H>, <V>]" ->
+    //      horizontal members use the value H
+    //      vertical members use the value V
+    // - "padding: [<L>, <R>, <T>, <B>]" ->
+    //      left and right members use the values L and R, respectively
+    //      top and bottom members use the values T and B, respectively
+
+    // case "padding: <N>"
     if (config.IsScalar()) {
         number padding_size = padding.left;
         read(config, padding_size, un_contextualized);
@@ -179,6 +212,7 @@ void read(YAML::Node const & config,
             padding.bottom = padding_size;
         }
     }
+    // case "padding: [<H>, <V>]"
     else if (config.IsSequence() and config.size() == 2) {
         number horizontal_padding = padding.left;
         read(config[0], horizontal_padding, un_contextualized);
@@ -196,6 +230,7 @@ void read(YAML::Node const & config,
             padding.bottom = vertical_padding;
         }
     }
+    // case "padding: [<L>, <R>, <T>, <B>]"
     else if (config.IsSequence() and config.size() == 4) {
         number left_padding;
         read(config[0], left_padding, un_contextualized);
@@ -221,6 +256,7 @@ void read(YAML::Node const & config,
             padding.bottom = bottom_padding;
         }
     }
+    // config is a sequence, but has the incorrect number of elements
     else if (config.IsSequence()) {
         YAML::Exception const error{
             config.Mark(),
@@ -229,6 +265,7 @@ void read(YAML::Node const & config,
         ranges::copy(views::single(error),
                      back_inserter_preference(un_contextualized));
     }
+    // config was not a number or a sequence
     else {
         YAML::Exception const error{
             config.Mark(),
@@ -252,32 +289,33 @@ void print_error(std::string const & error)
 int main()
 {
     auto const config = YAML::LoadFile("../assets/widget.yaml");
+    // Won't be able to parse any data if the config couldn't load, or if isn't
+    // a map, so we'll need to short-circuit in those cases
     if (not config) {
         std::cout << "Unable to load yaml config\n";
         return EXIT_FAILURE;
     }
-    auto const layout_config = config["layout"];
-    if (not layout_config) {
-        std::cout << "Couldn't find \"layout\" settings in config\n";
+    if (not config.IsMap()) {
+        std::cout << "Expecting config to be a map\n";
         return EXIT_FAILURE;
     }
-    auto const padding_config = config["padding"];
-    if (not padding_config) {
-        std::cout << "Couldn't find \"padding\" settings in config\n";
-        return EXIT_FAILURE;
-    }
-
     std::vector<YAML::Exception> errors;
-
+    // layout and padding have reasonable defaults, so if they're not specified
+    // in the config, that's fine
     gold::layout layout;
-    konbu::read(layout_config, layout, errors);
-
+    if (auto const layout_config = config["layout"]) {
+        konbu::read(layout_config, layout, errors);
+    }
     gold::padding<float> padding;
-    konbu::read(padding_config, padding, errors);
-
+    if (auto const padding_config = config["padding"]) {
+        konbu::read(padding_config, padding, errors);
+    }
+    // if we ran into any errors parsing the config file,
+    // write them to the console here
     ranges::for_each(errors | views::transform(&YAML::Exception::what),
                      print_error);
 
+    // finally, display the values that ended up being used
     std::cout << "Using \"" << gold::to_string(layout.horz)
                             << "\" for horizontal value\n"
               << "  and \"" << gold::to_string(layout.vert)
