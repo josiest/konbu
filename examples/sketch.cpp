@@ -90,7 +90,7 @@ void read(YAML::Node const & config,
     // read the errors first into an isolated list, so that we can
     // re-contextualize them before copying them into the main error list
     std::vector<YAML::Exception> read_errors;
-    read_lookup(config, horz, as_horizontal_justification, read_errors);
+    konbu::read_lookup(config, horz, as_horizontal_justification, read_errors);
 
     // let the reader know that the error happened when parsing
     // horizontal justification
@@ -120,7 +120,7 @@ void read(YAML::Node const & config,
     // read the errors first into an isolated list, so that we can
     // re-contextualize them before copying them into the main error list
     std::vector<YAML::Exception> read_errors;
-    read_lookup(config, vert, as_vertical_justification, read_errors);
+    konbu::read_lookup(config, vert, as_vertical_justification, read_errors);
 
     // let the reader know that the error happened when parsing
     // vertical justification
@@ -203,24 +203,24 @@ void read(YAML::Node const & config,
 
     // case "padding: <N>"
     if (config.IsScalar()) {
-        read(config, padding.left, un_contextualized);
+        konbu::read(config, padding.left, un_contextualized);
         padding.right = padding.left;
         padding.top = padding.left;
         padding.bottom = padding.left;
     }
     // case "padding: [<H>, <V>]"
     else if (config.IsSequence() and config.size() == 2) {
-        read(config[0], padding.left, un_contextualized);
+        konbu::read(config[0], padding.left, un_contextualized);
         padding.right = padding.left;
-        read(config[1], padding.top, un_contextualized);
+        konbu::read(config[1], padding.top, un_contextualized);
         padding.bottom = padding.top;
     }
     // case "padding: [<L>, <R>, <T>, <B>]"
     else if (config.IsSequence() and config.size() == 4) {
-        read(config[0], padding.left, un_contextualized);
-        read(config[1], padding.right, un_contextualized);
-        read(config[2], padding.top, un_contextualized);
-        read(config[3], padding.bottom, un_contextualized);
+        konbu::read(config[0], padding.left, un_contextualized);
+        konbu::read(config[1], padding.right, un_contextualized);
+        konbu::read(config[2], padding.top, un_contextualized);
+        konbu::read(config[3], padding.bottom, un_contextualized);
     }
     // config is a sequence, but has the incorrect number of elements
     else if (config.IsSequence()) {
