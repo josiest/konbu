@@ -1,3 +1,5 @@
 layout:
   horizontal: fill
   vertical: center
+
+padding: [-13, 3]

@@ -1,21 +1,31 @@
 #pragma once
+
+// data types and resource handles
+#include <optional>
+#include <expected>
+
+// type constraints
 #include <concepts>
 #include <ranges>
+
+// i/o
 #include <sstream>
+#include <regex>
 #include <yaml-cpp/yaml.h>
 
 namespace konbu {
+
 template<typename container>
 concept can_push_back =
 requires(container & c, container::value_type const & v)
 {
-c.push_back(v);
+    c.push_back(v);
 };
 template<typename container>
 concept can_push_front =
 requires(container & c, container::value_type const & v)
 {
-c.push_front(v);
+    c.push_front(v);
 };
 
 template<std::ranges::range container>
@@ -84,5 +94,38 @@ void read_lookup(YAML::Node const & config,
     YAML::Exception const error{ config.Mark(), message.str() };
     ranges::copy(views::single(error),
                  back_inserter_preference(errors));
+}
+
+template<std::integral number,
+         std::ranges::output_range<YAML::Exception> error_output>
+void read(YAML::Node const & config, number & value, error_output & errors)
+{
+    namespace ranges = std::ranges;
+    namespace views = std::views;
+
+    if (not config.IsScalar()) {
+        YAML::Exception const error{ config.Mark(), "expecting an integer" };
+        ranges::copy(views::single(error),
+                     back_inserter_preference(errors));
+        return;
+    }
+    std::regex const negative_pattern{ "^-" };
+    if (std::is_unsigned_v<number> and
+        std::regex_search(config.Scalar(), negative_pattern)) {
+
+        YAML::Exception const error{ config.Mark(),
+                                     "expecting a non-negative integer" };
+        ranges::copy(views::single(error),
+                     back_inserter_preference(errors));
+        return;
+    }
+    std::regex const integer_pattern{ "-?[0-9]+[ \t]*" };
+    if (not std::regex_match(config.Scalar(), integer_pattern)) {
+        YAML::Exception const error{ config.Mark(), "expecting an integer" };
+        ranges::copy(views::single(error),
+                     back_inserter_preference(errors));
+        return;
+    }
+    value = config.as<number>();
 }
 }

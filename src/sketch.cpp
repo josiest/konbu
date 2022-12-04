@@ -4,13 +4,17 @@
 #include <iostream>
 #include <yaml-cpp/yaml.h>
 
-// type constraints
+// type constraints and algorithms
 #include <ranges>
+#include <algorithm>
 
 // data types and structures
 #include <unordered_map>
 #include <vector>
 #include <string>
+
+// data types
+#include <cstdint>
 
 namespace ranges = std::ranges;
 namespace views = std::views;
@@ -36,32 +40,41 @@ struct layout {
     just::horizontal horz = just::horizontal::left;
     just::vertical vert = just::vertical::top;
 };
-}
-namespace just = gold::just;
-std::string to_string(just::horizontal const & horz)
-{
+
+template<typename number>
+requires std::is_arithmetic_v<number> and
+        (not std::same_as<number, bool>)
+struct padding{
+    number left = 0;
+    number right = 0;
+    number top = 0;
+    number bottom = 0;
+};
+
+std::string to_string(just::horizontal const &horz) {
     using namemap = std::unordered_map<just::horizontal, std::string>;
     static namemap const names{
-        { just::horizontal::left,   "left" },
-        { just::horizontal::right,  "right" },
-        { just::horizontal::center, "center" },
-        { just::horizontal::fill,   "fill" }
+        {just::horizontal::left,   "left"},
+        {just::horizontal::right,  "right"},
+        {just::horizontal::center, "center"},
+        {just::horizontal::fill,   "fill"}
     };
     return names.find(horz)->second;
 }
-std::string to_string(just::vertical const & vert)
-{
+
+std::string to_string(just::vertical const &vert) {
     using namemap = std::unordered_map<just::vertical, std::string>;
     static namemap const names{
-        { just::vertical::top,      "top" },
-        { just::vertical::bottom,   "bottom" },
-        { just::vertical::center,   "center" },
-        { just::vertical::fill,     "fill" }
+        {just::vertical::top,    "top"},
+        {just::vertical::bottom, "bottom"},
+        {just::vertical::center, "center"},
+        {just::vertical::fill,   "fill"}
     };
     return names.find(vert)->second;
 }
+}
 
-
+namespace just = gold::just;
 namespace konbu {
 template<ranges::output_range<YAML::Exception> error_output>
 void read(YAML::Node const & config,
@@ -81,7 +94,7 @@ void read(YAML::Node const & config,
         std::stringstream message;
         message << "couldn't read horizontal justification: "
                 << no_context.msg << "\n  using default value \""
-                << to_string(horz) << "\"";
+                << gold::to_string(horz) << "\"";
         return YAML::Exception{ no_context.mark, message.str() };
     };
     ranges::copy(read_errors | views::transform(contextualize),
@@ -106,7 +119,7 @@ void read(YAML::Node const & config,
         std::stringstream message;
         message << "couldn't read vertical justification: "
                 << no_context.msg << "\n  using default value \""
-                << to_string(vert) << "\"";
+                << gold::to_string(vert) << "\"";
         return YAML::Exception{ no_context.mark, message.str() };
     };
     ranges::copy(read_errors | views::transform(contextualize),
@@ -141,9 +154,102 @@ void read(YAML::Node const & config,
                  back_inserter_preference(errors));
 }
 
-void print_error(std::string const & message) {
-    std::cout << message << "\n\n";
+template<std::integral number,
+         std::ranges::output_range<YAML::Exception> error_output>
+requires (not std::same_as<number, bool>)
+void read(YAML::Node const & config,
+          gold::padding<number> & padding,
+          error_output & errors)
+{
+    namespace ranges = std::ranges;
+    namespace views = std::views;
+
+    std::vector<YAML::Exception> un_contextualized;
+    auto contextualize = [](YAML::Exception const & error) {
+        std::stringstream message;
+        message << "couldn't read padding value\n  " << error.msg
+                << "\n  using default value of " << gold::padding<number>{}.left;
+        return YAML::Exception{ error.mark, message.str() };
+    };
+    if (config.IsScalar()) {
+        number padding_size = padding.left;
+        read(config, padding_size, un_contextualized);
+        if (un_contextualized.empty()) {
+            padding.left = padding_size;
+            padding.right = padding_size;
+            padding.top = padding_size;
+            padding.bottom = padding_size;
+        }
+    }
+    else if (config.IsSequence() and config.size() == 2) {
+        number horizontal_padding = padding.left;
+        read(config[0], horizontal_padding, un_contextualized);
+
+        if (un_contextualized.empty()) {
+            padding.left = horizontal_padding;
+            padding.right = horizontal_padding;
+        }
+        auto const num_errors = un_contextualized.size();
+        number vertical_padding = padding.top;
+        read(config[1], vertical_padding, un_contextualized);
+
+        if (num_errors == un_contextualized.size()) {
+            padding.top = vertical_padding;
+            padding.bottom = vertical_padding;
+        }
+    }
+    else if (config.IsSequence() and config.size() == 4) {
+        number left_padding;
+        read(config[0], left_padding, un_contextualized);
+        if (un_contextualized.empty()) {
+            padding.left = left_padding;
+        }
+        auto const num_left_errors = un_contextualized.size();
+        number right_padding;
+        read(config[1], right_padding, un_contextualized);
+        if (num_left_errors == un_contextualized.size()) {
+            padding.right = right_padding;
+        }
+        auto const num_right_errors = un_contextualized.size();
+        number top_padding;
+        read(config[2], top_padding, un_contextualized);
+        if (num_right_errors == un_contextualized.size()) {
+            padding.top = top_padding;
+        }
+        auto const num_top_errors = un_contextualized.size();
+        number bottom_padding;
+        read(config[3], bottom_padding, un_contextualized);
+        if (num_top_errors == un_contextualized.size()) {
+            padding.bottom = bottom_padding;
+        }
+    }
+    else if (config.IsSequence()) {
+        YAML::Exception const error{
+            config.Mark(),
+            "expecting either 1, 2 or 4 padding parameters"
+        };
+        ranges::copy(views::single(error),
+                     back_inserter_preference(un_contextualized));
+    }
+    else {
+        YAML::Exception const error{
+            config.Mark(),
+            "expecting a number or a sequence"
+        };
+        ranges::copy(views::single(error),
+                     back_inserter_preference(un_contextualized));
+    }
+    if (not un_contextualized.empty()) {
+        ranges::transform(un_contextualized,
+                          back_inserter_preference(errors),
+                          contextualize);
+    }
 }
+}
+
+void print_error(std::string const & error)
+{
+    std::cout << error << "\n\n";
 }
 
 int main()
@@ -158,16 +264,29 @@ int main()
         std::cout << "Couldn't find \"layout\" settings in config\n";
         return EXIT_FAILURE;
     }
+    auto const padding_config = config["padding"];
+    if (not padding_config) {
+        std::cout << "Couldn't find \"padding\" settings in config\n";
+        return EXIT_FAILURE;
+    }
+
+    std::vector<YAML::Exception> errors;
 
     gold::layout layout;
-    std::vector<YAML::Exception> errors;
     konbu::read(layout_config, layout, errors);
-    ranges::for_each(errors | views::transform(&YAML::Exception::what),
-                     konbu::print_error);
 
-    std::cout << "Using \"" << to_string(layout.horz)
+    gold::padding<std::uint32_t> padding;
+    konbu::read(padding_config, padding, errors);
+
+    ranges::for_each(errors | views::transform(&YAML::Exception::what),
+                     print_error);
+
+    std::cout << "Using \"" << gold::to_string(layout.horz)
                             << "\" for horizontal value\n"
-              << "  and \"" << to_string(layout.vert)
+              << "  and \"" << gold::to_string(layout.vert)
                             << "\" for vertical value\n";
+
+    std::cout << "Padding: [" << padding.left << ", " << padding.right << ", "
+                              << padding.top << ", " << padding.bottom << "]\n";
     return EXIT_SUCCESS;
 }
