@@ -128,4 +128,33 @@ void read(YAML::Node const & config, number & value, error_output & errors)
     }
     value = config.as<number>();
 }
+
+template<std::floating_point number,
+         std::ranges::output_range<YAML::Exception> error_output>
+void read(YAML::Node const & config, number & value, error_output & errors)
+{
+    namespace ranges = std::ranges;
+    namespace views = std::views;
+    if (not config.IsScalar()) {
+        YAML::Exception const error{ config.Mark(), "expecting a number" };
+        ranges::copy(views::single(error),
+                     back_inserter_preference(errors));
+        return;
+    }
+    std::regex const integer_pattern{ "-?[0-9]+\\.?" };
+    std::regex const decimal_pattern{ "-?\\.[0-9]+" };
+    std::regex const real_pattern{ "-?[0-9]+\\.[0-9]+" };
+
+    std::string const& scalar_value = config.Scalar();
+    if (not std::regex_match(scalar_value, integer_pattern) and
+        not std::regex_match(scalar_value, decimal_pattern) and
+        not std::regex_match(scalar_value, real_pattern)) {
+
+        YAML::Exception const error{ config.Mark(), "expecting a number" };
+        ranges::copy(views::single(error),
+                     back_inserter_preference(errors));
+        return;
+    }
+    value = config.as<number>();
+}
 }

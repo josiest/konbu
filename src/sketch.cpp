@@ -13,9 +13,6 @@
 #include <vector>
 #include <string>
 
-// data types
-#include <cstdint>
-
 namespace ranges = std::ranges;
 namespace views = std::views;
 
@@ -154,9 +151,10 @@ void read(YAML::Node const & config,
                  back_inserter_preference(errors));
 }
 
-template<std::integral number,
+template<typename number,
          std::ranges::output_range<YAML::Exception> error_output>
-requires (not std::same_as<number, bool>)
+requires std::is_arithmetic_v<number> and
+         (not std::same_as<number, bool>)
 void read(YAML::Node const & config,
           gold::padding<number> & padding,
           error_output & errors)
@@ -275,7 +273,7 @@ int main()
     gold::layout layout;
     konbu::read(layout_config, layout, errors);
 
-    gold::padding<std::uint32_t> padding;
+    gold::padding<float> padding;
     konbu::read(padding_config, padding, errors);
 
     ranges::for_each(errors | views::transform(&YAML::Exception::what),
