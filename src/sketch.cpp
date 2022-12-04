@@ -51,10 +51,6 @@ std::string to_string(just::horizontal const & horz)
     };
     return names.find(horz)->second;
 }
-std::ostream & operator<<(std::ostream & os, just::horizontal const & horz)
-{
-    return os << to_string(horz);
-}
 std::string to_string(just::vertical const & vert)
 {
     using namemap = std::unordered_map<just::vertical, std::string>;
@@ -66,9 +62,18 @@ std::string to_string(just::vertical const & vert)
     };
     return names.find(vert)->second;
 }
-std::ostream & operator<<(std::ostream & os, just::vertical const & vert)
+
+namespace konbu {
+template<typename T>
+concept string_convertible = requires(T const &t) {
+    { to_string(t) } -> std::convertible_to<std::string>;
+};
+}
+
+template<konbu::string_convertible T>
+std::ostream & operator<<(std::ostream & os, T const & t)
 {
-    return os << to_string(vert);
+    return os << to_string(t);
 }
 
 namespace konbu {
