@@ -82,6 +82,30 @@ requires(container & c, container::value_type const & v)
 {
     c.push_back(v);
 };
+template<typename container>
+concept can_push_front =
+requires(container & c, container::value_type const & v)
+{
+    c.push_front(v);
+};
+
+template<ranges::range container>
+auto back_inserter_preference(container & c)
+{
+    return std::inserter(c, ranges::begin(c));
+}
+template<ranges::range container>
+requires can_push_back<container>
+auto back_inserter_preference(container & c)
+{
+    return std::back_inserter(c);
+}
+template<ranges::range container>
+requires can_push_front<container> and (not can_push_back<container>)
+auto back_inserter_preference(container & c)
+{
+    return std::front_inserter(c);
+}
 
 template<typename container>
 using lookup_key_t = typename container::key_type;
@@ -100,8 +124,7 @@ requires(container const & c, lookup_key_t<container> const & key)
 
 template<ranges::output_range<YAML::Exception> error_output,
          lookup_table name_lookup>
-requires can_push_back<error_output> and
-         std::convertible_to<std::string, lookup_key_t<name_lookup>>
+requires std::convertible_to<std::string, lookup_key_t<name_lookup>>
 
 void read_lookup(YAML::Node const & config,
                  lookup_mapped_t<name_lookup> & value,
@@ -111,7 +134,7 @@ void read_lookup(YAML::Node const & config,
     if (not config.IsScalar()) {
         YAML::Exception const error{ config.Mark(), "Expecting a string" };
         ranges::copy(views::single(error),
-                     std::back_inserter(errors));
+                     back_inserter_preference(errors));
         return;
     }
     auto const search = lookup.find(config.as<std::string>());
@@ -129,11 +152,10 @@ void read_lookup(YAML::Node const & config,
     message << "]";
     YAML::Exception const error{ config.Mark(), message.str() };
     ranges::copy(views::single(error),
-                 std::back_inserter(errors));
+                 back_inserter_preference(errors));
 }
 
 template<ranges::output_range<YAML::Exception> error_output>
-requires can_push_back<error_output>
 void read(YAML::Node const & config,
           just::horizontal & horz,
           error_output & errors)
@@ -153,12 +175,11 @@ void read(YAML::Node const & config,
                 << read_error.msg << "\n  using default value \""
                 << horz << "\"";
         YAML::Exception const error{ read_error.mark, message.str() };
-        ranges::copy(views::single(error), std::back_inserter(errors));
+        ranges::copy(views::single(error), back_inserter_preference(errors));
     }
 }
 
 template <ranges::output_range<YAML::Exception> error_output>
-requires can_push_back<error_output>
 void read(YAML::Node const & config,
           just::vertical & vert,
           error_output & errors)
@@ -178,7 +199,7 @@ void read(YAML::Node const & config,
                 << read_error.msg << "\n  using default value \""
                 << vert << "\"";
         YAML::Exception const error{ read_error.mark, message.str() };
-        ranges::copy(views::single(error), std::back_inserter(errors));
+        ranges::copy(views::single(error), back_inserter_preference(errors));
     }
 }
 
