@@ -169,14 +169,15 @@ void read(YAML::Node const & config,
     };
     std::vector<YAML::Exception> read_errors;
     read_lookup(config, horz, as_horizontal_justification, read_errors);
-    for (auto const & read_error : read_errors) {
+    auto contextualize = [&horz](YAML::Exception const & no_context) {
         std::stringstream message;
         message << "couldn't read horizontal justification\n  "
-                << read_error.msg << "\n  using default value \""
+                << no_context.msg << "\n  using default value \""
                 << horz << "\"";
-        YAML::Exception const error{ read_error.mark, message.str() };
-        ranges::copy(views::single(error), back_inserter_preference(errors));
-    }
+        return YAML::Exception{ no_context.mark, message.str() };
+    };
+    ranges::copy(read_errors | views::transform(contextualize),
+                 back_inserter_preference(errors));
 }
 
 template <ranges::output_range<YAML::Exception> error_output>
@@ -193,14 +194,15 @@ void read(YAML::Node const & config,
     };
     std::vector<YAML::Exception> read_errors;
     read_lookup(config, vert, as_vertical_justification, read_errors);
-    for (auto const & read_error : read_errors) {
+    auto contextualize = [&vert](YAML::Exception const & no_context) {
         std::stringstream message;
         message << "couldn't read vertical justification\n  "
-                << read_error.msg << "\n  using default value \""
+                << no_context.msg << "\n  using default value \""
                 << vert << "\"";
-        YAML::Exception const error{ read_error.mark, message.str() };
-        ranges::copy(views::single(error), back_inserter_preference(errors));
-    }
+        return YAML::Exception{ no_context.mark, message.str() };
+    };
+    ranges::copy(read_errors | views::transform(contextualize),
+                 back_inserter_preference(errors));
 }
 
 void print_error(std::string const & message) {
