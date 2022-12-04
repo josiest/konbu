@@ -396,7 +396,7 @@ void read_flags(YAML::Node const & flagname_sequence,
     }
     auto contextualize = [](YAML::Exception const & error) {
         std::stringstream message;
-        message << "couldn't parse flags: " << error.msg;
+        message << "couldn't parse flag: " << error.msg;
         return YAML::Exception{ error.mark, message.str() };
     };
     ranges::copy(flagname_errors | views::transform(contextualize),
