@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.23)
-project(konbu VERSION 0.2.0)
+project(konbu VERSION 0.2.1)
 
 add_library(konbu INTERFACE)
 target_sources(konbu INTERFACE
