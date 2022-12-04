@@ -240,10 +240,8 @@ void read(YAML::Node const & config,
         ranges::copy(views::single(error),
                      back_inserter_preference(un_contextualized));
     }
-    if (not un_contextualized.empty()) {
-        ranges::copy(un_contextualized | views::transform(contextualize),
-                     back_inserter_preference(errors));
-    }
+    ranges::copy(un_contextualized | views::transform(contextualize),
+                 back_inserter_preference(errors));
 }
 }
 
