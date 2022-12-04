@@ -379,11 +379,11 @@ void read_flags(YAML::Node const & flagname_sequence,
             continue;
         }
         std::stringstream message;
-        message << "no flag named " << name << "\n  "
+        message << "no flag named \"" << name << "\"\n  "
                 << "expecting name to be one of the following: [";
         std::string sep;
         for (const auto & flag : lookup | views::keys) {
-            message << sep << name;
+            message << sep << flag;
             sep = ", ";
         }
         message << "]";
