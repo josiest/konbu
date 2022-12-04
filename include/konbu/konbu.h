@@ -62,7 +62,7 @@ requires(container const & c, lookup_key_t<container> const & key)
 };
 
 template<std::ranges::output_range<YAML::Exception> error_output,
-    lookup_table name_lookup>
+         lookup_table name_lookup>
 requires std::convertible_to<std::string, lookup_key_t<name_lookup>>
 
 void read_lookup(YAML::Node const & config,

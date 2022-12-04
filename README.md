@@ -31,7 +31,7 @@ cmake --install . --prefix <path/to/your/project>
 You can then add this to your project's `CMakeLists.txt`
 
 ```CMake
-find_package(konbu 0.1.0 EXACT REQUIRED)
+find_package(konbu 0.1.0 EXACT REQUIRED PATHS lib/cmake)
 target_link_libraries(<your-project> INTERFACE konbu::konbu)
 ```
 Note that this example uses the `--prefix` option for installing via cmake, and
@@ -63,6 +63,26 @@ This interface has some expectations:
   `insert_iterator`
 - `your_class` should be default-constructable so that if any errors happen
   along the way, the value that already exists will be used.
+
+You can then use the function somewhat like this:
+```cpp
+void print_error(std::string const & error)
+{
+    std::cout << error << "\n\n";
+}
+
+int main()
+{
+    auto const config = YAML::LoadFile("path/to/your/asset.yaml");
+    std::vector<YAML::Exception> errors;
+    
+    your_class value;
+    konbu::read(config, value, errors);
+    
+    ranges::for_each(errors | views::transform(&YAML::Exception::what),
+                     print_error);
+}
+```
 
 ## Examples
 For more details and examples of how to use te library, see

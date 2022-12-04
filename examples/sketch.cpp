@@ -153,8 +153,8 @@ void read(YAML::Node const & config,
 
 template<typename number,
          std::ranges::output_range<YAML::Exception> error_output>
-requires std::is_arithmetic_v<number> and
-         (not std::same_as<number, bool>)
+requires std::is_arithmetic_v<number> and (not std::same_as<number, bool>)
+
 void read(YAML::Node const & config,
           gold::padding<number> & padding,
           error_output & errors)
@@ -238,9 +238,8 @@ void read(YAML::Node const & config,
                      back_inserter_preference(un_contextualized));
     }
     if (not un_contextualized.empty()) {
-        ranges::transform(un_contextualized,
-                          back_inserter_preference(errors),
-                          contextualize);
+        ranges::copy(un_contextualized | views::transform(contextualize),
+                     back_inserter_preference(errors));
     }
 }
 }
