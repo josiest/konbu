@@ -203,58 +203,24 @@ void read(YAML::Node const & config,
 
     // case "padding: <N>"
     if (config.IsScalar()) {
-        number padding_size = padding.left;
-        read(config, padding_size, un_contextualized);
-        if (un_contextualized.empty()) {
-            padding.left = padding_size;
-            padding.right = padding_size;
-            padding.top = padding_size;
-            padding.bottom = padding_size;
-        }
+        read(config, padding.left, un_contextualized);
+        padding.right = padding.left;
+        padding.top = padding.left;
+        padding.bottom = padding.left;
     }
     // case "padding: [<H>, <V>]"
     else if (config.IsSequence() and config.size() == 2) {
-        number horizontal_padding = padding.left;
-        read(config[0], horizontal_padding, un_contextualized);
-
-        if (un_contextualized.empty()) {
-            padding.left = horizontal_padding;
-            padding.right = horizontal_padding;
-        }
-        auto const num_errors = un_contextualized.size();
-        number vertical_padding = padding.top;
-        read(config[1], vertical_padding, un_contextualized);
-
-        if (num_errors == un_contextualized.size()) {
-            padding.top = vertical_padding;
-            padding.bottom = vertical_padding;
-        }
+        read(config[0], padding.left, un_contextualized);
+        padding.right = padding.left;
+        read(config[1], padding.top, un_contextualized);
+        padding.bottom = padding.top;
     }
     // case "padding: [<L>, <R>, <T>, <B>]"
     else if (config.IsSequence() and config.size() == 4) {
-        number left_padding;
-        read(config[0], left_padding, un_contextualized);
-        if (un_contextualized.empty()) {
-            padding.left = left_padding;
-        }
-        auto const num_left_errors = un_contextualized.size();
-        number right_padding;
-        read(config[1], right_padding, un_contextualized);
-        if (num_left_errors == un_contextualized.size()) {
-            padding.right = right_padding;
-        }
-        auto const num_right_errors = un_contextualized.size();
-        number top_padding;
-        read(config[2], top_padding, un_contextualized);
-        if (num_right_errors == un_contextualized.size()) {
-            padding.top = top_padding;
-        }
-        auto const num_top_errors = un_contextualized.size();
-        number bottom_padding;
-        read(config[3], bottom_padding, un_contextualized);
-        if (num_top_errors == un_contextualized.size()) {
-            padding.bottom = bottom_padding;
-        }
+        read(config[0], padding.left, un_contextualized);
+        read(config[1], padding.right, un_contextualized);
+        read(config[2], padding.top, un_contextualized);
+        read(config[3], padding.bottom, un_contextualized);
     }
     // config is a sequence, but has the incorrect number of elements
     else if (config.IsSequence()) {

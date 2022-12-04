@@ -2,4 +2,4 @@ layout:
   horizontal: fill
   vertical: center
 
-padding: [1.5, 3.]
+padding: 10, 20
