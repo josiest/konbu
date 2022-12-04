@@ -1,3 +1,4 @@
+#include "konbu/konbu.h"
 
 // i/o
 #include <iostream>
@@ -37,8 +38,6 @@ struct layout {
 };
 }
 namespace just = gold::just;
-
-namespace just = gold::just;
 std::string to_string(just::horizontal const & horz)
 {
     using namemap = std::unordered_map<just::horizontal, std::string>;
@@ -62,99 +61,8 @@ std::string to_string(just::vertical const & vert)
     return names.find(vert)->second;
 }
 
-namespace konbu {
-template<typename T>
-concept string_convertible = requires(T const &t) {
-    { to_string(t) } -> std::convertible_to<std::string>;
-};
-}
-
-template<konbu::string_convertible T>
-std::ostream & operator<<(std::ostream & os, T const & t)
-{
-    return os << to_string(t);
-}
 
 namespace konbu {
-template<typename container>
-concept can_push_back =
-requires(container & c, container::value_type const & v)
-{
-    c.push_back(v);
-};
-template<typename container>
-concept can_push_front =
-requires(container & c, container::value_type const & v)
-{
-    c.push_front(v);
-};
-
-template<ranges::range container>
-auto back_inserter_preference(container & c)
-{
-    return std::inserter(c, ranges::begin(c));
-}
-template<ranges::range container>
-requires can_push_back<container>
-auto back_inserter_preference(container & c)
-{
-    return std::back_inserter(c);
-}
-template<ranges::range container>
-requires can_push_front<container> and (not can_push_back<container>)
-auto back_inserter_preference(container & c)
-{
-    return std::front_inserter(c);
-}
-
-template<typename container>
-using lookup_key_t = typename container::key_type;
-
-template <typename container>
-using lookup_mapped_t = typename container::mapped_type;
-
-template<typename container>
-concept lookup_table =
-requires(container const & c, lookup_key_t<container> const & key)
-{
-    { c.find(key) } -> std::indirectly_readable;
-    { c.find(key)->first } -> std::convertible_to<lookup_key_t<container>>;
-    { c.find(key)->second } -> std::convertible_to<lookup_mapped_t<container>>;
-};
-
-template<ranges::output_range<YAML::Exception> error_output,
-         lookup_table name_lookup>
-requires std::convertible_to<std::string, lookup_key_t<name_lookup>>
-
-void read_lookup(YAML::Node const & config,
-                 lookup_mapped_t<name_lookup> & value,
-                 name_lookup const & lookup,
-                 error_output & errors)
-{
-    if (not config.IsScalar()) {
-        YAML::Exception const error{ config.Mark(), "expecting a string" };
-        ranges::copy(views::single(error),
-                     back_inserter_preference(errors));
-        return;
-    }
-    auto const search = lookup.find(config.as<std::string>());
-    if (search != lookup.end()) {
-        value = search->second;
-        return;
-    }
-    std::stringstream message;
-    message << "\n    expecting value to be one of the following: [";
-    std::string sep;
-    for (const auto & name : lookup | views::keys) {
-        message << sep << name;
-        sep = ", ";
-    }
-    message << "]";
-    YAML::Exception const error{ config.Mark(), message.str() };
-    ranges::copy(views::single(error),
-                 back_inserter_preference(errors));
-}
-
 template<ranges::output_range<YAML::Exception> error_output>
 void read(YAML::Node const & config,
           just::horizontal & horz,
@@ -173,7 +81,7 @@ void read(YAML::Node const & config,
         std::stringstream message;
         message << "couldn't read horizontal justification: "
                 << no_context.msg << "\n  using default value \""
-                << horz << "\"";
+                << to_string(horz) << "\"";
         return YAML::Exception{ no_context.mark, message.str() };
     };
     ranges::copy(read_errors | views::transform(contextualize),
@@ -198,7 +106,7 @@ void read(YAML::Node const & config,
         std::stringstream message;
         message << "couldn't read vertical justification: "
                 << no_context.msg << "\n  using default value \""
-                << vert << "\"";
+                << to_string(vert) << "\"";
         return YAML::Exception{ no_context.mark, message.str() };
     };
     ranges::copy(read_errors | views::transform(contextualize),
@@ -257,7 +165,9 @@ int main()
     ranges::for_each(errors | views::transform(&YAML::Exception::what),
                      konbu::print_error);
 
-    std::cout << "Using \"" << layout.horz << "\" for horizontal value\n"
-              << "  and \"" << layout.vert << "\" for vertical value\n";
+    std::cout << "Using \"" << to_string(layout.horz)
+                            << "\" for horizontal value\n"
+              << "  and \"" << to_string(layout.vert)
+                            << "\" for vertical value\n";
     return EXIT_SUCCESS;
 }
