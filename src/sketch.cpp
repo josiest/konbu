@@ -132,7 +132,7 @@ void read_lookup(YAML::Node const & config,
                  error_output & errors)
 {
     if (not config.IsScalar()) {
-        YAML::Exception const error{ config.Mark(), "Expecting a string" };
+        YAML::Exception const error{ config.Mark(), "expecting a string" };
         ranges::copy(views::single(error),
                      back_inserter_preference(errors));
         return;
@@ -143,7 +143,7 @@ void read_lookup(YAML::Node const & config,
         return;
     }
     std::stringstream message;
-    message << "expecting value to be one of the following: [";
+    message << "\n    expecting value to be one of the following: [";
     std::string sep;
     for (const auto & name : lookup | views::keys) {
         message << sep << name;
@@ -171,7 +171,7 @@ void read(YAML::Node const & config,
     read_lookup(config, horz, as_horizontal_justification, read_errors);
     auto contextualize = [&horz](YAML::Exception const & no_context) {
         std::stringstream message;
-        message << "couldn't read horizontal justification\n  "
+        message << "couldn't read horizontal justification: "
                 << no_context.msg << "\n  using default value \""
                 << horz << "\"";
         return YAML::Exception{ no_context.mark, message.str() };
@@ -196,7 +196,7 @@ void read(YAML::Node const & config,
     read_lookup(config, vert, as_vertical_justification, read_errors);
     auto contextualize = [&vert](YAML::Exception const & no_context) {
         std::stringstream message;
-        message << "couldn't read vertical justification\n  "
+        message << "couldn't read vertical justification: "
                 << no_context.msg << "\n  using default value \""
                 << vert << "\"";
         return YAML::Exception{ no_context.mark, message.str() };
@@ -205,11 +205,38 @@ void read(YAML::Node const & config,
                  back_inserter_preference(errors));
 }
 
-void print_error(std::string const & message) {
-    std::cout << message << "\n";
-}
+template<ranges::output_range<YAML::Exception> error_output>
+void read(YAML::Node const & config,
+          gold::layout & layout,
+          error_output & errors)
+{
+    if (not config.IsMap()) {
+        YAML::Exception const error{
+            config.Mark(), "expecting \"layout\" settings to be a map\n"
+        };
+        ranges::copy(views::single(error), back_inserter_preference(errors));
+        return;
+    }
+    std::vector<YAML::Exception> not_contextualized;
+    if (auto const horizontal_config = config["horizontal"]) {
+        read(horizontal_config, layout.horz, not_contextualized);
+    }
+    if (auto const vertical_config = config["vertical"]) {
+        read(vertical_config, layout.vert, not_contextualized);
+    }
+    auto contextualize = [](YAML::Exception const & no_context) {
+        std::stringstream message;
+        message << "couldn't read layout settings\n  " << no_context.msg;
+        return YAML::Exception{ no_context.mark, message.str() };
+    };
+    ranges::copy(not_contextualized | views::transform(contextualize),
+                 back_inserter_preference(errors));
 }
 
+void print_error(std::string const & message) {
+    std::cout << message << "\n\n";
+}
+}
 
 int main()
 {
@@ -223,32 +250,14 @@ int main()
         std::cout << "Couldn't find \"layout\" settings in config\n";
         return EXIT_FAILURE;
     }
-    if (not layout_config.IsMap()) {
-        std::cout << "Expecting \"layout\" settings to be a map\n";
-        return EXIT_FAILURE;
-    }
-    auto const horizontal_config = layout_config["horizontal"];
-    if (not horizontal_config) {
-        std::cout << "Couldn't find \"horizontal\" settings in config\n";
-        return EXIT_FAILURE;
-    }
-    auto const vertical_config = layout_config["vertical"];
-    if (not vertical_config) {
-        std::cout << "Couldn't find \"vertical\" settings in config\n";
-        return EXIT_FAILURE;
-    }
 
-    namespace just = gold::just;
-    auto horz = just::horizontal::left;
-    auto vert = just::vertical::top;
-
+    gold::layout layout;
     std::vector<YAML::Exception> errors;
-    konbu::read(horizontal_config, horz, errors);
-    konbu::read(vertical_config, vert, errors);
+    konbu::read(layout_config, layout, errors);
     ranges::for_each(errors | views::transform(&YAML::Exception::what),
                      konbu::print_error);
 
-    std::cout << "Using \"" << horz << "\" for horizontal value\n"
-              << "  and \"" << vert << "\" for vertical value\n";
+    std::cout << "Using \"" << layout.horz << "\" for horizontal value\n"
+              << "  and \"" << layout.vert << "\" for vertical value\n";
     return EXIT_SUCCESS;
 }
