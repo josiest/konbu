@@ -7,7 +7,6 @@
 #include <ranges>
 
 // data types and structures
-#include <unordered_set>
 #include <unordered_map>
 #include <vector>
 #include <string>
@@ -85,9 +84,6 @@ requires(container & c, container::value_type const & v)
 };
 
 template<typename container>
-using lookup_value_t = typename container::value_type;
-
-template<typename container>
 using lookup_key_t = typename container::key_type;
 
 template <typename container>
@@ -95,7 +91,7 @@ using lookup_mapped_t = typename container::mapped_type;
 
 template<typename container>
 concept lookup_table =
-requires(container const & c, container::key_type const & key)
+requires(container const & c, lookup_key_t<container> const & key)
 {
     { c.find(key) } -> std::indirectly_readable;
     { c.find(key)->first } -> std::convertible_to<lookup_key_t<container>>;
@@ -125,7 +121,7 @@ void read_lookup(YAML::Node const & config,
     }
     std::stringstream message;
     message << "expecting value to be one of the following: [";
-    std::string sep = "";
+    std::string sep;
     for (const auto & name : lookup | views::keys) {
         message << sep << name;
         sep = ", ";
