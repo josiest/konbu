@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <ranges>
 
-#include "konbu/read.hpp"
+#include "pi/konbu/read.hpp"
 #include "justification.hpp"
 
 inline namespace gold {

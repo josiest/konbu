@@ -6,5 +6,5 @@ set_target_properties(sketch PROPERTIES
         CXX_STANDARD_REQUIRED TRUE)
 
 target_link_libraries(sketch
-        INTERFACE ion::konbu
+        INTERFACE pi::konbu
         PRIVATE yaml-cpp)

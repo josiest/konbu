@@ -5,7 +5,7 @@
 
 #include <yaml-cpp/yaml.h>
 #include "pi/containers/lookup_table.hpp"
-#include "konbu/read.hpp"
+#include "pi/konbu/read.hpp"
 
 inline namespace gold {
 
