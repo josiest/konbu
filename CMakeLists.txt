@@ -5,10 +5,17 @@ add_library(konbu INTERFACE)
 target_sources(konbu INTERFACE
         FILE_SET HEADERS
         BASE_DIRS include
-        FILES include/konbu/konbu.h)
+        FILES include/konbu/read.hpp
+              include/konbu/expect.hpp)
+
+set_target_properties(konbu PROPERTIES
+    CXX_STANDARD 23
+    CXX_STANDARD_REQUIRED True)
 
 find_package(yaml-cpp REQUIRED)
 target_link_libraries(konbu INTERFACE yaml-cpp)
+
+add_subdirectory(examples)
 
 #
 # Export and install the libary
@@ -65,14 +72,3 @@ install(FILES
 # allow exporting from build tree
 export(EXPORT konbu-targets
         FILE ${CMAKE_CURRENT_BINARY_DIR}/konbu-targets.cmake NAMESPACE ion::)
-
-add_executable(sketch examples/sketch.cpp)
-target_include_directories(sketch PRIVATE include)
-
-set_target_properties(sketch PROPERTIES
-        CXX_STANDARD 23
-        CXX_STANDARD_REQUIRED TRUE)
-
-target_link_libraries(sketch
-        INTERFACE ion::konbu
-        PRIVATE yaml-cpp)

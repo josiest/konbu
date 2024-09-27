@@ -1,0 +1,3 @@
+[submodule "lookup-table"]
+	path = lookup-table
+	url = git@github.com:josiest/lookup-table.git

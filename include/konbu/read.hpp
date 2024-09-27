@@ -3,6 +3,7 @@
 // data types and resource handles
 #include <optional>
 #include <expected>
+#include "pi/containers/lookup_table.hpp"
 
 // type constraints
 #include <concepts>
@@ -13,6 +14,7 @@
 #include <regex>
 #include <yaml-cpp/yaml.h>
 
+inline namespace pi {
 namespace konbu {
 
 /**
@@ -91,13 +93,65 @@ using lookup_mapped_t = typename container::mapped_type;
  * \tparam container can find a key and return a pair iterator
  */
 template<typename container>
-concept lookup_table =
+concept lookup_container =
 requires(container const & c, lookup_key_t<container> const & key)
 {
     { c.find(key) } -> std::indirectly_readable;
     { c.find(key)->first } -> std::convertible_to<lookup_key_t<container>>;
     { c.find(key)->second } -> std::convertible_to<lookup_mapped_t<container>>;
 };
+
+template<typename To, typename From>
+concept convertible_from = std::convertible_to<From, To>;
+
+/**
+ * \brief parse an arbitrary type from a name-lookup
+ *
+ * \tparam name_lookup      maps strings to value types
+ * \tparam ErrorOutput     allocator-aware container of yaml-exceptions
+ *
+ * \param config    YAML string input
+ * \param value     write parsed value to
+ * \param lookup    maps names to their desired values
+ * \param errors    write any parsing errors to
+ */
+template<typename Value,
+         convertible_from<std::string> StringLike,
+         std::size_t N,
+         std::ranges::output_range<YAML::Exception> ErrorOutput>
+
+bool read_lookup(YAML::Node const & config,
+                 Value & out_value,
+                 pi::lookup_table<Value, StringLike, N> const & name_lookup,
+                 ErrorOutput & errors)
+{
+    namespace ranges = std::ranges;
+    namespace views = std::views;
+
+    if (not config.IsScalar()) {
+        std::stringstream message;
+        message << "expecting a string but got \"" << YAML::Dump(config) << "\"";
+        ranges::copy(views::single(YAML::Exception{ config.Mark(), message.str() }),
+                     back_inserter_preference(errors));
+        return false;
+    }
+    auto const search = name_lookup.find(config.as<std::string>());
+    if (search != name_lookup.end()) {
+        out_value = search->first;
+        return true;
+    }
+    std::stringstream message;
+    message << "expecting value to be one of the following: [";
+    std::string sep;
+    for (const auto & [_, name] : name_lookup) {
+        message << sep << name;
+        sep = ", ";
+    }
+    message << "]";
+    ranges::copy(views::single(YAML::Exception{ config.Mark(), message.str() }),
+                 back_inserter_preference(errors));
+    return false;
+}
 
 /**
  * \brief parse an arbitrary type from a name-lookup
@@ -110,12 +164,12 @@ requires(container const & c, lookup_key_t<container> const & key)
  * \param lookup    maps names to their desired values
  * \param errors    write any parsing errors to
  */
-template<lookup_table name_lookup,
+template<lookup_container name_lookup,
          std::ranges::output_range<YAML::Exception> error_output>
-requires std::convertible_to<std::string, lookup_key_t<name_lookup>>
+requires std::convertible_to<std::string, lookup_mapped_t<name_lookup>>
 
-void read_lookup(YAML::Node const & config,
-                 lookup_mapped_t<name_lookup> & value,
+bool read_lookup(YAML::Node const & config,
+                 lookup_key_t<name_lookup> & value,
                  name_lookup const & lookup,
                  error_output & errors)
 {
@@ -125,12 +179,12 @@ void read_lookup(YAML::Node const & config,
         YAML::Exception const error{ config.Mark(), "expecting a string" };
         ranges::copy(views::single(error),
                      back_inserter_preference(errors));
-        return;
+        return false;
     }
     auto const search = lookup.find(config.as<std::string>());
     if (search != lookup.end()) {
         value = search->second;
-        return;
+        return true;
     }
     std::stringstream message;
     message << "expecting value to be one of the following: [";
@@ -158,7 +212,7 @@ void read_lookup(YAML::Node const & config,
 template<typename string_like,
          std::ranges::output_range<YAML::Exception> error_output>
 requires std::convertible_to<std::string, string_like>
-void read(YAML::Node const & config, string_like & value, error_output & errors)
+bool read(YAML::Node const & config, string_like & value, error_output & errors)
 {
     namespace ranges = std::ranges;
     namespace views = std::views;
@@ -167,9 +221,10 @@ void read(YAML::Node const & config, string_like & value, error_output & errors)
         YAML::Exception const error{ config.Mark(), "expecting a string" };
         ranges::copy(views::single(error),
                      back_inserter_preference(errors));
-        return;
+        return false;
     }
     value = config.Scalar();
+    return true;
 }
 
 /**
@@ -187,7 +242,7 @@ void read(YAML::Node const & config, string_like & value, error_output & errors)
  */
 template<std::integral number,
          std::ranges::output_range<YAML::Exception> error_output>
-void read(YAML::Node const & config, number & value, error_output & errors)
+bool read(YAML::Node const & config, number & value, error_output & errors)
 {
     namespace ranges = std::ranges;
     namespace views = std::views;
@@ -196,7 +251,7 @@ void read(YAML::Node const & config, number & value, error_output & errors)
         YAML::Exception const error{ config.Mark(), "expecting an integer" };
         ranges::copy(views::single(error),
                      back_inserter_preference(errors));
-        return;
+        return false;
     }
     std::regex const negative_pattern{ "^-" };
     if (std::is_unsigned_v<number> and
@@ -206,16 +261,17 @@ void read(YAML::Node const & config, number & value, error_output & errors)
                                      "expecting a non-negative integer" };
         ranges::copy(views::single(error),
                      back_inserter_preference(errors));
-        return;
+        return false;
     }
     std::regex const integer_pattern{ "-?[0-9]+[ \t]*" };
     if (not std::regex_match(config.Scalar(), integer_pattern)) {
         YAML::Exception const error{ config.Mark(), "expecting an integer" };
         ranges::copy(views::single(error),
                      back_inserter_preference(errors));
-        return;
+        return false;
     }
     value = config.as<number>();
+    return true;
 }
 
 /**
@@ -230,7 +286,7 @@ void read(YAML::Node const & config, number & value, error_output & errors)
  */
 template<std::floating_point number,
          std::ranges::output_range<YAML::Exception> error_output>
-void read(YAML::Node const & config, number & value, error_output & errors)
+bool read(YAML::Node const & config, number & value, error_output & errors)
 {
     namespace ranges = std::ranges;
     namespace views = std::views;
@@ -238,7 +294,7 @@ void read(YAML::Node const & config, number & value, error_output & errors)
         YAML::Exception const error{ config.Mark(), "expecting a number" };
         ranges::copy(views::single(error),
                      back_inserter_preference(errors));
-        return;
+        return false;
     }
     std::regex const integer_pattern{ "-?[0-9]+\\.?" };
     std::regex const decimal_pattern{ "-?\\.[0-9]+" };
@@ -252,9 +308,10 @@ void read(YAML::Node const & config, number & value, error_output & errors)
         YAML::Exception const error{ config.Mark(), "expecting a number" };
         ranges::copy(views::single(error),
                      back_inserter_preference(errors));
-        return;
+        return false;
     }
     value = config.as<number>();
+    return true;
 }
 
 /**
@@ -265,7 +322,7 @@ template<typename value>
 concept readable =
 requires(YAML::Node const & node, value & v, std::vector<YAML::Exception> & errors)
 {
-    konbu::read(node, v, errors);
+    { konbu::read(node, v, errors) } -> std::same_as<bool>;
 };
 
 /**
@@ -286,9 +343,9 @@ template<std::ranges::range value_output,
          std::ranges::output_range<YAML::Exception> error_output>
 requires readable<std::ranges::range_value_t<value_output>>
 
-void partition_expect(YAML::Node const & sequence,
-                      value_output & values,
-                      error_output & errors)
+bool partition_read(YAML::Node const & sequence,
+                    value_output & values,
+                    error_output & errors)
 {
     namespace ranges = std::ranges;
     namespace views = std::views;
@@ -297,7 +354,7 @@ void partition_expect(YAML::Node const & sequence,
     if (not sequence.IsSequence()) {
         YAML::Exception const error{ sequence.Mark(), "expecting a sequence" };
         ranges::copy(views::single(error), back_inserter_preference(errors));
-        return;
+        return false;
     }
     std::vector<YAML::Exception> sequence_errors;
     for (YAML::Node const & node : sequence) {
@@ -318,6 +375,7 @@ void partition_expect(YAML::Node const & sequence,
     };
     ranges::copy(sequence_errors | views::transform(contextualize),
                  back_inserter_preference(errors));
+    return true;
 }
 
 /**
@@ -336,15 +394,16 @@ void partition_expect(YAML::Node const & sequence,
  * If no valid flags were parsed, the value existing in flags will be used.
  * Any invalid flagnames or other parsing errors will be written to `errors`
  */
-template<lookup_table flag_lookup,
-         std::ranges::output_range<YAML::Exception> error_output>
-requires std::convertible_to<std::string, lookup_key_t<flag_lookup>> and
-         std::unsigned_integral<lookup_mapped_t<flag_lookup>>
+template<lookup_container FlagLookup,
+         std::ranges::output_range<YAML::Exception> ErrorOutput>
 
-void read_flags(YAML::Node const & flagname_sequence,
-                lookup_mapped_t<flag_lookup> & flags,
-                flag_lookup const & lookup,
-                error_output & errors)
+requires std::convertible_to<std::string, lookup_mapped_t<FlagLookup>> and
+         std::unsigned_integral<lookup_key_t<FlagLookup>>
+
+bool read_flags(YAML::Node const & flagname_sequence,
+                lookup_key_t<FlagLookup> & flags,
+                FlagLookup const & lookup,
+                ErrorOutput & errors)
 {
     namespace ranges = std::ranges;
     namespace views = std::views;
@@ -353,9 +412,9 @@ void read_flags(YAML::Node const & flagname_sequence,
         YAML::Exception const error{ flagname_sequence.Mark(),
                                      "expecting a sequence" };
         ranges::copy(views::single(error), back_inserter_preference(errors));
-        return;
+        return false;
     }
-    lookup_mapped_t<flag_lookup> parsed_flags = 0u;
+    lookup_key_t<FlagLookup> parsed_flags = 0u;
     auto parse_valid = [&lookup, &parsed_flags](std::string const & name) {
         auto const search = lookup.find(name);
         if (search != lookup.end()) {
@@ -401,6 +460,7 @@ void read_flags(YAML::Node const & flagname_sequence,
     };
     ranges::copy(flagname_errors | views::transform(contextualize),
                  back_inserter_preference(errors));
+    return true;
 }
 
 template<typename value>
@@ -459,7 +519,7 @@ inline auto contextualize_setting(std::string const & setting_name)
  */
 template<std::unsigned_integral number,
     std::ranges::output_range<YAML::Exception> error_output>
-void read_version(YAML::Node const & input,
+bool read_version(YAML::Node const & input,
                   number & major_version, number & minor_version,
                   error_output & errors)
 {
@@ -470,7 +530,7 @@ void read_version(YAML::Node const & input,
                                      "expecting a version string" };
         ranges::copy(views::single(error),
                      back_inserter_preference(errors));
-        return;
+        return false;
     }
     YAML::Exception const format_error{
         input.Mark(),
@@ -481,17 +541,20 @@ void read_version(YAML::Node const & input,
     if (not std::regex_search(input.Scalar(), version_match, version_pattern)) {
         ranges::copy(views::single(format_error),
                      back_inserter_preference(errors));
-        return;
+        return false;
     }
     if (version_match.size() != 3) {
         ranges::copy(views::single(format_error),
                      back_inserter_preference(errors));
-        return;
+        return false;
     }
     YAML::Node const major_config{ version_match[1].str() };
     major_version = major_config.as<number>();
 
     YAML::Node const minor_config{ version_match[2].str() };
     minor_version = minor_config.as<number>();
+
+    return true;
+}
 }
 }
