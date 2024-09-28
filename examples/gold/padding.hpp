@@ -5,6 +5,7 @@
 
 #include <yaml-cpp/yaml.h>
 #include "pi/konbu/read.hpp"
+#include "pi/konbu/meta.hpp"
 
 inline namespace gold {
 
@@ -15,6 +16,20 @@ concept numeric = std::is_arithmetic_v<std::remove_cvref_t<Number>>
 /** Define padding for a widget's layout. */
 template<numeric Number>
 struct padding{
+    constexpr padding(Number left, Number right, Number top, Number bottom)
+        : left{left}, right{right}, top{top}, bottom{bottom}
+    {
+    }
+    constexpr padding(Number horizontal, Number vertical)
+        : padding(horizontal, horizontal, vertical, vertical)
+    {
+    }
+    constexpr padding(Number value)
+        : padding(value, value, value, value)
+    {
+    }
+    constexpr padding() : padding(0) {}
+
     Number left = 0;
     Number right = 0;
     Number top = 0;
@@ -28,11 +43,28 @@ concept padding_like = requires(Container padding) {
     requires std::same_as<decltype(padding.top), decltype(padding.left)>;
     requires std::same_as<decltype(padding.bottom), decltype(padding.left)>;
 };
+
 }
 
 inline namespace pi {
-
 namespace konbu {
+
+template<gold::padding_like Padding>
+auto reflect()
+{
+    using namespace entt::literals;
+    using Field = std::remove_cvref_t<decltype(std::declval<Padding>().left)>;
+    return entt::meta<Padding>()
+        .type("gold::padding"_hs)
+        .template ctor<Field, Field, Field, Field>()
+        .template ctor<Field, Field>()
+        .template ctor<Field>()
+        .template data<&Padding::left>("left"_hs)
+        .template data<&Padding::right>("right"_hs)
+        .template data<&Padding::top>("top"_hs)
+        .template data<&Padding::bottom>("bottom"_hs);
+}
+
 template<padding_like Padding, std::ranges::output_range<YAML::Exception> ErrorOutput>
 bool read(YAML::Node const & config, Padding & padding, ErrorOutput & errors)
 {

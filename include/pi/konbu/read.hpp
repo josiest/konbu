@@ -556,5 +556,8 @@ bool read_version(YAML::Node const & input,
 
     return true;
 }
+
+template<typename T>
+struct reader{};
 }
 }

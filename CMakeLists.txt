@@ -15,7 +15,8 @@ set_target_properties(pi-konbu PROPERTIES
 add_library(pi::konbu ALIAS pi-konbu)
 
 find_package(yaml-cpp REQUIRED)
-target_link_libraries(pi-konbu INTERFACE yaml-cpp)
+find_package(EnTT REQUIRED)
+target_link_libraries(pi-konbu INTERFACE yaml-cpp::yaml-cpp EnTT::EnTT)
 
 add_subdirectory(examples)
 

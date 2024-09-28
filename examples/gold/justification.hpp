@@ -3,9 +3,12 @@
 #include <string_view>
 #include <expected>
 
+#include <entt/meta/meta.hpp>
 #include <yaml-cpp/yaml.h>
+
 #include "pi/containers/lookup_table.hpp"
 #include "pi/konbu/read.hpp"
+#include "pi/konbu/meta.hpp"
 
 inline namespace gold {
 
@@ -56,6 +59,23 @@ inline std::string to_string(gold::justification::vertical value)
 inline namespace pi {
 
 namespace konbu {
+template<>
+inline auto reflect<gold::justification::horizontal>()
+{
+    using namespace entt::literals;
+    return entt::meta<gold::justification::horizontal>()
+        .type("gold::justification::horizontal"_hs)
+        .data<&gold::justification::horizontal_names>("name-lookup"_hs);
+}
+template<>
+inline auto reflect<gold::justification::vertical>()
+{
+    using namespace entt::literals;
+    return entt::meta<gold::justification::vertical>()
+        .type("gold::justification::vertical"_hs)
+        .data<&gold::justification::vertical_names>("name-lookup"_hs);
+}
+
 template<std::ranges::output_range<YAML::Exception> Errors>
 bool read(YAML::Node const & config, gold::justification::horizontal & value, Errors & errors)
 {

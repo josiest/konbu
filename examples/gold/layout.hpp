@@ -4,6 +4,7 @@
 #include <ranges>
 
 #include "pi/konbu/read.hpp"
+#include "pi/konbu/meta.hpp"
 #include "justification.hpp"
 
 inline namespace gold {
@@ -15,6 +16,20 @@ struct layout {
 
 inline namespace pi {
 namespace konbu {
+
+template<>
+inline auto reflect<gold::layout>()
+{
+    using namespace entt::literals;
+
+    reflect<gold::justification::horizontal>();
+    reflect<gold::justification::vertical>();
+
+    return entt::meta<gold::layout>()
+        .type("gold::layout"_hs)
+        .data<&gold::layout::horizontal>("horizontal"_hs)
+        .data<&gold::layout::vertical>("vertical"_hs);
+}
 
 template<std::ranges::output_range<YAML::Exception> ErrorOutput>
 bool read(YAML::Node const & config, gold::layout & layout, ErrorOutput & errors)
