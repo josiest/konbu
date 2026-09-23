@@ -2,6 +2,7 @@
 #include <meta>
 #include <concepts>
 
+#include <regex>
 #include <string>
 #include <sstream>
 #include <string_view>
@@ -38,6 +39,11 @@ constexpr std::string scoped_enum_name(EnumType value)
     return "<unknown>";
 }
 
+consteval std::string_view serialized_name_of(std::meta::info info)
+{
+    return std::meta::identifier_of(info);
+}
+
 template<typename DecodeFn, typename T>
 concept yaml_decoder_for = requires(YAML::Node node, T val)
 {
@@ -51,11 +57,11 @@ concept yaml_encoder_for = requires(T val)
 };
 
 template<typename T>
-concept yaml_convertible = requires
+concept yaml_convertible = requires(YAML::Node node, T val)
 {
     requires std::default_initializable<T>;
-    { YAML::convert<T>::decode } -> yaml_decoder_for<T>;
-    { YAML::convert<T>::encode } -> yaml_encoder_for<T>;
+    { YAML::convert<T>::decode(node, val) } -> std::same_as<bool>;
+    { YAML::convert<T>::encode(val) } -> std::same_as<YAML::Node>;
 };
 
 template<yaml_convertible T>
@@ -64,38 +70,47 @@ bool read_yaml(const YAML::Node & node, T & value)
     return YAML::convert<T>::decode(node, value);
 }
 
-template<yaml_convertible T>
-std::optional<T> try_read_yaml(const YAML::Node & node)
-{
-    T value;
-    if (not YAML::convert<T>::decode(node, value)) { return std::nullopt; }
-    return std::optional<T>(std::in_place, std::move(value));
-}
-
 template<typename EnumT>
 requires (not yaml_convertible<EnumT>) and std::is_enum_v<EnumT>
-std::optional<EnumT> try_read_yaml(const YAML::Node & node)
+bool read_yaml(const YAML::Node & node, EnumT & value)
 {
-    if (not node.IsDefined() or node.IsNull() or not node.IsScalar()) { return std::nullopt; }
+    if (not node.IsDefined() or node.IsNull() or not node.IsScalar()) { return false; }
     template for (constexpr auto element : std::define_static_array(std::meta::enumerators_of(^^EnumT)))
     {
         if (std::meta::identifier_of(element) == node.Scalar())
         {
-            return std::optional<EnumT>(std::in_place, [:element:]);
+            value = [:element:];
+            return true;
         }
     }
-    return std::nullopt;
+    return false;
+}
+
+template<std::default_initializable AggregateT>
+requires (not yaml_convertible<AggregateT>) and std::is_aggregate_v<AggregateT>
+bool read_yaml(const YAML::Node & node, AggregateT & value)
+{
+    if (not node.IsDefined() or node.IsNull() or not node.IsMap()) { return false; }
+    constexpr auto ctx = std::meta::access_context::current();
+    bool success = true;
+    template for (constexpr auto member
+        : std::define_static_array(std::meta::nonstatic_data_members_of(^^AggregateT, ctx)))
+    {
+        if (const YAML::Node member_node = node[serialized_name_of(member).data()])
+        {
+            success = success and read_yaml(member_node, value.[:member:]);
+        }
+    }
+    return success;
 }
 
 template<std::default_initializable T>
-requires (not yaml_convertible<T>)
-bool read_value(const YAML::Node & node, T & value)
+std::optional<T> try_read_yaml(const YAML::Node & node)
 {
-    if (std::optional<T> read_result = try_read_yaml<T>(node))
+    if (T value; read_yaml(node, value))
     {
-        value = *std::move(read_result);
-        return true;
+        return std::optional<T>(std::in_place, value);
     }
-    return false;
+    return std::nullopt;
 }
 }

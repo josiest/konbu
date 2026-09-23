@@ -1,15 +1,18 @@
 #include <cstdlib>
 #include <iostream>
 
-#include <yaml-cpp/yaml.h>
-
 #include "pi/konbu.hpp"
 #include "gold.hpp"
+
+struct SDL_Point
+{
+    int x, y;
+};
 
 template<typename EnumType> requires std::is_scoped_enum_v<EnumType>
 static std::string read_enum(std::string_view src)
 {
-    return pi::try_read_yaml<EnumType>(YAML::Node(src))
+    return pi::try_read_yaml<EnumType>(YAML::Load(src.data()))
         .transform([](EnumType value) { return pi::scoped_enum_name(value); })
         .value_or(std::string("<unknown>"));
 }
@@ -22,10 +25,61 @@ static void read_justification_as_horizontal_and_vertical(std::string_view src)
     std::cout << read_enum<Vertical>(src) << "\n";
 }
 
-int main()
+static void read_justifications_example()
 {
     read_justification_as_horizontal_and_vertical("fill");
     read_justification_as_horizontal_and_vertical("bottom");
     read_justification_as_horizontal_and_vertical("left");
+    read_justification_as_horizontal_and_vertical("center");
+}
+
+static void print(const gold::layout & layout)
+{
+    std::cout << "[" << pi::enum_name(layout.horizontal) << ", " << pi::enum_name(layout.vertical) << "]";
+}
+
+static void print(const SDL_Point & p)
+{
+    std::cout << "(" << p.x << ", " << p.y << ")";
+}
+
+template<typename T>
+concept printable = requires(T val)
+{
+    print(val);
+};
+
+static void println(const printable auto & val)
+{
+    print(val); std::cout << "\n";
+}
+
+static void read_layout_example()
+{
+    constexpr std::string_view layout_src =
+        "horizontal: right\n"
+        "vertical: center\n";
+    const YAML::Node layout_node = YAML::Load(layout_src.data());
+
+    gold::layout layout;
+    pi::read_yaml(layout_node, layout);
+    println(layout);
+
+    constexpr std::string_view point_src =
+        "x: 3\n"
+        "y: 4";
+    const YAML::Node point_node = YAML::Load(point_src.data());
+    SDL_Point p;
+    pi::read_yaml(point_node, p);
+    println(p);
+
+    std::cout << "Is padding aggregate? "
+              << (std::is_aggregate_v<gold::padding<float>>? "Yes\n" : "No\n");
+}
+
+int main()
+{
+    // read_justifications_example();
+    read_layout_example();
     return EXIT_SUCCESS;
 }
