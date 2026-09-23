@@ -202,17 +202,18 @@ std::optional<T> pi::try_read_yaml_constructible(const YAML::Node & node)
     {
         return std::nullopt;
     }
+    constexpr std::string_view class_name = std::meta::display_string_of(^^T);
 
     constexpr auto ctx = std::meta::access_context::current();
-    template for (constexpr auto member : std::define_static_array(std::meta::members_of(^^T, ctx)))
+    template for (constexpr auto ctor : std::define_static_array(std::meta::members_of(^^T, ctx)))
     {
-        if constexpr (std::meta::is_constructor(member) and not std::meta::is_default_constructor(member)
-                      and not std::meta::is_copy_constructor(member) and not std::meta::is_move_constructor(member))
+        if constexpr (std::meta::is_constructor(ctor) and not std::meta::is_default_constructor(ctor)
+                      and not std::meta::is_copy_constructor(ctor) and not std::meta::is_move_constructor(ctor))
         {
-            constexpr std::size_t parameter_size = std::meta::parameters_of(member).size();
+            constexpr std::size_t parameter_size = std::meta::parameters_of(ctor).size();
             if (parameter_size == 1 and node.IsScalar())
             {
-                constexpr auto parameter_type = std::meta::type_of(std::meta::parameters_of(member)[0]);
+                constexpr auto parameter_type = std::meta::type_of(std::meta::parameters_of(ctor)[0]);
                 if constexpr (std::meta::is_default_constructible_type(parameter_type))
                 {
                     typename [:parameter_type:] value;
@@ -222,7 +223,20 @@ std::optional<T> pi::try_read_yaml_constructible(const YAML::Node & node)
             }
             else if (node.IsSequence() and parameter_size == node.size())
             {
-                std::cout << std::meta::display_string_of(member) << "\n";
+                std::cout << class_name;
+                std::string sep = "(";
+                template for (constexpr std::size_t i : std::views::iota(0uz, parameter_size))
+                {
+                    constexpr auto parameter_type = std::meta::type_of(std::meta::parameters_of(ctor)[i]);
+                    if constexpr (std::meta::is_default_constructible_type(parameter_type))
+                    {
+                        typename [:parameter_type:] value;
+                        read_yaml(node[i], value);
+                        std::cout << sep << value;
+                        sep = ", ";
+                    }
+                }
+                std::cout << ")\n";
             }
         }
     }

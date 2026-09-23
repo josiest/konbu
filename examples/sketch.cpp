@@ -102,7 +102,7 @@ static void read_layout_example()
 static void read_padding_example()
 {
     {
-        constexpr std::string_view src = "15";
+        constexpr std::string_view src = "[15, 30, 10 , 20]";
         const YAML::Node node = YAML::Load(src.data());
         const auto padding = pi::try_read_yaml_constructible<gold::padding<float>>(node);
         if (padding) { println(*padding); }
