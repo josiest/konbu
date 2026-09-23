@@ -87,14 +87,15 @@ bool read_yaml(const YAML::Node & node, EnumT & value)
 }
 
 template<typename T>
-concept tuple_like = requires
+concept ranged_tuple = requires (T value)
 {
-    { std::tuple_size_v<T> } -> std::same_as<const std::size_t &>;
-    typename std::tuple_element<0uz, T>::type;
+    requires std::ranges::range<T>;
+    requires std::tuple_size_v<T> == std::ranges::size(value);
+    requires std::same_as<std::tuple_element_t<0, T>, std::ranges::range_value_t<T>>;
 };
 
-template<tuple_like TupleT>
-requires (not yaml_convertible<TupleT>) and std::ranges::range<TupleT>
+template<ranged_tuple TupleT>
+requires (not yaml_convertible<TupleT>)
 bool read_yaml(const YAML::Node & node, TupleT & value)
 {
     if (not node.IsDefined() or node.IsNull() or not node.IsSequence()
@@ -111,7 +112,7 @@ bool read_yaml(const YAML::Node & node, TupleT & value)
 }
 
 template<std::default_initializable AggregateT>
-requires (not yaml_convertible<AggregateT>) and (not tuple_like<AggregateT>) and std::is_aggregate_v<AggregateT>
+requires (not yaml_convertible<AggregateT>) and (not ranged_tuple<AggregateT>) and std::is_aggregate_v<AggregateT>
 bool read_yaml(const YAML::Node & node, AggregateT & value)
 {
     if (not node.IsDefined() or node.IsNull() or not node.IsMap()) { return false; }

@@ -18,7 +18,7 @@ struct std::tuple_size<SDL_Point>
 template<std::size_t I> requires (I < 2)
 struct std::tuple_element<I, SDL_Point>
 {
-    using type = std::add_const_t<int>;
+    using type = int;
 };
 
 static constexpr auto begin(const SDL_Point & p) { return &p.x; }
@@ -87,8 +87,7 @@ static void read_layout_example()
     SDL_Point p;
     pi::read_yaml(point_node, p);
     println(p);
-    static_assert(pi::tuple_like<SDL_Point>);
-    static_assert(std::ranges::range<SDL_Point>);
+    static_assert(pi::ranged_tuple<SDL_Point>);
 
     std::cout << "Is padding aggregate? "
               << (std::is_aggregate_v<gold::padding<float>>? "Yes\n" : "No\n");
