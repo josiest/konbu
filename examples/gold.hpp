@@ -40,7 +40,7 @@ struct padding{
         : padding(horizontal, horizontal, vertical, vertical)
     {
     }
-    constexpr padding(Field value)
+    constexpr explicit padding(Field value)
         : padding(value, value, value, value)
     {
     }

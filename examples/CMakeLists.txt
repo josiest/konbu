@@ -14,5 +14,5 @@ target_link_libraries(sketch
         INTERFACE pi-konbu
         PRIVATE yaml-cpp::yaml-cpp)
 
-target_compile_options(sketch PRIVATE "-freflection")
+target_compile_options(sketch PRIVATE "-freflection" "-fconcepts-diagnostics-depth=5")
 target_include_directories(sketch PUBLIC ../include)

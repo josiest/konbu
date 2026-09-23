@@ -9,6 +9,23 @@ struct SDL_Point
     int x, y;
 };
 
+template<>
+struct std::tuple_size<SDL_Point>
+{
+    static constexpr std::size_t value = 2;
+};
+
+template<std::size_t I> requires (I < 2)
+struct std::tuple_element<I, SDL_Point>
+{
+    using type = std::add_const_t<int>;
+};
+
+static constexpr auto begin(const SDL_Point & p) { return &p.x; }
+static constexpr auto begin(SDL_Point & p) { return &p.x; }
+static constexpr auto end(const SDL_Point & p) { return &p.y+1; }
+static constexpr auto end(SDL_Point & p) { return &p.y+1; }
+
 template<typename EnumType> requires std::is_scoped_enum_v<EnumType>
 static std::string read_enum(std::string_view src)
 {
@@ -65,13 +82,13 @@ static void read_layout_example()
     pi::read_yaml(layout_node, layout);
     println(layout);
 
-    constexpr std::string_view point_src =
-        "x: 3\n"
-        "y: 4";
+    constexpr std::string_view point_src = "[3, 4]";
     const YAML::Node point_node = YAML::Load(point_src.data());
     SDL_Point p;
     pi::read_yaml(point_node, p);
     println(p);
+    static_assert(pi::tuple_like<SDL_Point>);
+    static_assert(std::ranges::range<SDL_Point>);
 
     std::cout << "Is padding aggregate? "
               << (std::is_aggregate_v<gold::padding<float>>? "Yes\n" : "No\n");

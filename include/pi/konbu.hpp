@@ -86,8 +86,32 @@ bool read_yaml(const YAML::Node & node, EnumT & value)
     return false;
 }
 
+template<typename T>
+concept tuple_like = requires
+{
+    { std::tuple_size_v<T> } -> std::same_as<const std::size_t &>;
+    typename std::tuple_element<0uz, T>::type;
+};
+
+template<tuple_like TupleT>
+requires (not yaml_convertible<TupleT>) and std::ranges::range<TupleT>
+bool read_yaml(const YAML::Node & node, TupleT & value)
+{
+    if (not node.IsDefined() or node.IsNull() or not node.IsSequence()
+                             or node.size() != std::tuple_size_v<TupleT>) { return false; }
+
+    bool success = true;
+    auto * it = std::ranges::begin(value);
+    template for (constexpr std::size_t I : std::views::iota(0uz, std::tuple_size_v<TupleT>))
+    {
+        success = success and read_yaml(node[I], *it);
+        it = std::ranges::next(it, 1, std::ranges::end(value));
+    }
+    return success;
+}
+
 template<std::default_initializable AggregateT>
-requires (not yaml_convertible<AggregateT>) and std::is_aggregate_v<AggregateT>
+requires (not yaml_convertible<AggregateT>) and (not tuple_like<AggregateT>) and std::is_aggregate_v<AggregateT>
 bool read_yaml(const YAML::Node & node, AggregateT & value)
 {
     if (not node.IsDefined() or node.IsNull() or not node.IsMap()) { return false; }
