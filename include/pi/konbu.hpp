@@ -62,6 +62,9 @@ bool read_yaml(const YAML::Node & node, std::vector<T> & values);
 
 template<std::default_initializable T>
 std::optional<T> try_read_yaml(const YAML::Node & node);
+
+template<typename T>
+std::optional<T> try_read_yaml_constructible(const YAML::Node & node);
 }
 
 // Helpers Implementation
@@ -188,6 +191,40 @@ std::optional<T> pi::try_read_yaml(const YAML::Node & node)
     if (T value; read_yaml(node, value))
     {
         return std::optional<T>(std::in_place, value);
+    }
+    return std::nullopt;
+}
+
+template<typename T>
+std::optional<T> pi::try_read_yaml_constructible(const YAML::Node & node)
+{
+    if (not node.IsDefined() or node.IsNull() or not (node.IsScalar() or node.IsSequence()))
+    {
+        return std::nullopt;
+    }
+
+    constexpr auto ctx = std::meta::access_context::current();
+    template for (constexpr auto member : std::define_static_array(std::meta::members_of(^^T, ctx)))
+    {
+        if constexpr (std::meta::is_constructor(member) and not std::meta::is_default_constructor(member)
+                      and not std::meta::is_copy_constructor(member) and not std::meta::is_move_constructor(member))
+        {
+            constexpr std::size_t parameter_size = std::meta::parameters_of(member).size();
+            if (parameter_size == 1 and node.IsScalar())
+            {
+                constexpr auto parameter_type = std::meta::type_of(std::meta::parameters_of(member)[0]);
+                if constexpr (std::meta::is_default_constructible_type(parameter_type))
+                {
+                    typename [:parameter_type:] value;
+                    read_yaml(node, value);
+                    return std::optional<T>(std::in_place, value);
+                }
+            }
+            else if (node.IsSequence() and parameter_size == node.size())
+            {
+                std::cout << std::meta::display_string_of(member) << "\n";
+            }
+        }
     }
     return std::nullopt;
 }

@@ -55,6 +55,12 @@ static void print(const gold::layout & layout)
     std::cout << "[" << pi::enum_name(layout.horizontal) << ", " << pi::enum_name(layout.vertical) << "]";
 }
 
+template<typename T> requires std::is_arithmetic_v<T>
+static void print(const gold::padding<T> & padding)
+{
+    std::cout << "[" << padding.left << ", " << padding.right << ", " << padding.top << ", " << padding.bottom << "]";
+}
+
 static void print(const SDL_Point & p)
 {
     std::cout << "(" << p.x << ", " << p.y << ")";
@@ -93,9 +99,20 @@ static void read_layout_example()
               << (std::is_aggregate_v<gold::padding<float>>? "Yes\n" : "No\n");
 }
 
+static void read_padding_example()
+{
+    {
+        constexpr std::string_view src = "15";
+        const YAML::Node node = YAML::Load(src.data());
+        const auto padding = pi::try_read_yaml_constructible<gold::padding<float>>(node);
+        if (padding) { println(*padding); }
+    }
+}
+
 int main()
 {
     // read_justifications_example();
-    read_layout_example();
+    // read_layout_example();
+    read_padding_example();
     return EXIT_SUCCESS;
 }
