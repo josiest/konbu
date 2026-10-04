@@ -37,7 +37,11 @@ template<typename EnumType> requires std::is_scoped_enum_v<EnumType>
 constexpr std::string scoped_enum_name(EnumType value);
 
 // Annotation Helpers
-consteval std::string_view serialized_name_of(std::meta::info info);
+static constexpr std::size_t MAX_ANNOTATION_LENGTH = std::numeric_limits<std::uint8_t>::max();
+struct serialized_name
+{
+    char value[MAX_ANNOTATION_LENGTH];
+};
 
 // Read YAML interface
 // ===================
@@ -98,11 +102,6 @@ constexpr std::string pi::scoped_enum_name(EnumType value)
     return "<unknown>";
 }
 
-consteval std::string_view pi::serialized_name_of(std::meta::info info)
-{
-    return std::meta::identifier_of(info);
-}
-
 // Read YAML Implementation
 // ========================
 
@@ -157,9 +156,23 @@ bool pi::read_yaml(const YAML::Node & node, AggregateT & value)
     template for (constexpr auto member
         : std::define_static_array(std::meta::nonstatic_data_members_of(^^AggregateT, ctx)))
     {
-        if (const YAML::Node member_node = node[serialized_name_of(member).data()])
+        constexpr auto member_serialized_names
+            = std::define_static_array(std::meta::annotations_of_with_type(member, ^^serialized_name));
+
+        if constexpr (not member_serialized_names.empty())
         {
-            success = success and read_yaml(member_node, value.[:member:]);
+            if (const YAML::Node member_node
+                = node[std::meta::extract<serialized_name>(member_serialized_names[0]).value])
+            {
+                success = success and read_yaml(member_node, value.[:member:]);
+            }
+        }
+        else
+        {
+            if (const YAML::Node member_node = node[std::meta::identifier_of(member)])
+            {
+                success = success and read_yaml(member_node, value.[:member:]);
+            }
         }
     }
     return success;

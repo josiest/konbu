@@ -21,6 +21,12 @@ struct std::tuple_element<I, SDL_Point>
     using type = int;
 };
 
+struct window_settings
+{
+    [[=pi::serialized_name("options")]]
+    std::vector<std::string> flag_names;
+};
+
 static constexpr auto begin(const SDL_Point & p) { return &p.x; }
 static constexpr auto begin(SDL_Point & p) { return &p.x; }
 static constexpr auto end(const SDL_Point & p) { return &p.y+1; }
@@ -119,11 +125,26 @@ static void read_vector_example()
     }
 }
 
+static void read_serialized_name_example()
+{
+    constexpr std::string_view src = "options: [opengl, resizable]";
+    const YAML::Node node = YAML::Load(src.data());
+    if (window_settings settings; pi::read_yaml(node, settings))
+    {
+        for (const auto & name : settings.flag_names)
+        {
+            std::cout << name << "\n";
+        }
+    }
+
+}
+
 int main()
 {
     // read_justifications_example();
     // read_layout_example();
     // read_padding_example();
-    read_vector_example();
+    // read_vector_example();
+    read_serialized_name_example();
     return EXIT_SUCCESS;
 }
