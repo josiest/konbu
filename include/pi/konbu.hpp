@@ -48,8 +48,8 @@ template<typename EnumT>
 requires (not yaml_convertible<EnumT>) and std::is_enum_v<EnumT>
 bool read_yaml(const YAML::Node & node, EnumT & value);
 
-template<ranged_tuple TupleT>
-requires (not yaml_convertible<TupleT>)
+template<typename TupleT>
+requires (not yaml_convertible<TupleT>) and ranged_tuple<TupleT>
 bool read_yaml(const YAML::Node & node, TupleT & value);
 
 template<std::default_initializable AggregateT>
@@ -128,8 +128,8 @@ bool pi::read_yaml(const YAML::Node & node, EnumT & value)
     return false;
 }
 
-template<pi::ranged_tuple TupleT>
-requires (not pi::yaml_convertible<TupleT>)
+template<typename TupleT>
+requires (not pi::yaml_convertible<TupleT>) and pi::ranged_tuple<TupleT>
 bool pi::read_yaml(const YAML::Node & node, TupleT & value)
 {
     if (not node.IsDefined() or node.IsNull() or not node.IsSequence()

@@ -101,11 +101,21 @@ static void read_layout_example()
 
 static void read_padding_example()
 {
+    constexpr std::string_view src = "[15, 30, 10 , 20]";
+    const YAML::Node node = YAML::Load(src.data());
+    if (const auto padding = pi::try_read_yaml_constructible<gold::padding<float>>(node)) { println(*padding); }
+}
+
+static void read_vector_example()
+{
+    constexpr std::string_view src = "[video, audio, gamepad]";
+    const YAML::Node node = YAML::Load(src.data());
+
+    static_assert(pi::yaml_convertible<std::string>);
+    if (std::vector<std::string> flag_names; pi::read_yaml<std::string>(node, flag_names))
     {
-        constexpr std::string_view src = "[15, 30, 10 , 20]";
-        const YAML::Node node = YAML::Load(src.data());
-        const auto padding = pi::try_read_yaml_constructible<gold::padding<float>>(node);
-        if (padding) { println(*padding); }
+        for (const auto & name : flag_names)
+        std::cout << name << "\n";
     }
 }
 
@@ -113,6 +123,7 @@ int main()
 {
     // read_justifications_example();
     // read_layout_example();
-    read_padding_example();
+    // read_padding_example();
+    read_vector_example();
     return EXIT_SUCCESS;
 }
